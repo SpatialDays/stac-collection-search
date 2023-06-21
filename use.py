@@ -20,7 +20,7 @@ if __name__ == "__main__":
                                          temporal_extent_end=temporal_extent_end)
 
     print(json.dumps(collection_list, indent=4))
-    url ="https://planetarycomputer.microsoft.com/api/stac/v1/collections"
+    url ="https://paituli.csc.fi/geoserver/ogc/collections"
     response = requests.get(url)
     collection_list_json_dict = response.json()
     temporal_extent_start = datetime.datetime(2019, 1, 1)

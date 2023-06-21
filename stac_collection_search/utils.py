@@ -59,10 +59,10 @@ def _process_timestamp(timestamp: str) -> datetime:
 
 
 def search_collections(
-    collection_json_dict: dict,
-    spatial_extent: shapely.geometry.Polygon = None,
-    temporal_extent_start=None,
-    temporal_extent_end=None,
+        collection_json_dict: dict,
+        spatial_extent: shapely.geometry.Polygon = None,
+        temporal_extent_start=None,
+        temporal_extent_end=None,
 ) -> List[Dict[AnyStr, Any]]:
     collection_list = _get_collections(collection_json_dict)
     collections_spatially_filtered = (
@@ -75,46 +75,46 @@ def search_collections(
         else collection_list
     )
     ids = []
+    if temporal_extent_start is not None:
+        temporal_extent_start = temporal_extent_start.replace(tzinfo=datetime.timezone.utc)
+    if temporal_extent_end is not None:
+        temporal_extent_end = temporal_extent_end.replace(tzinfo=datetime.timezone.utc)
     for collection in collections_spatially_filtered:
-        try: 
-            if (
+        collection_temporal_extent_start = collection["temporal_extent"]["start"]
+        collection_temporal_extent_end = collection["temporal_extent"]["end"]
+        if collection_temporal_extent_start is not None:
+            collection_temporal_extent_start_utc = collection_temporal_extent_start.replace(
+                tzinfo=datetime.timezone.utc)
+        else:
+            collection_temporal_extent_start_utc = None
+        if collection_temporal_extent_end is not None:
+            collection_temporal_extent_end_utc = collection_temporal_extent_end.replace(tzinfo=datetime.timezone.utc)
+        else:
+            collection_temporal_extent_end_utc = None
+
+        if (
                 temporal_extent_start is None
-                or collection["temporal_extent"]["end"] is None
-                or collection["temporal_extent"]["end"] >= temporal_extent_start
-            ) and (
+                or collection_temporal_extent_end_utc is None
+                or collection_temporal_extent_end_utc >= temporal_extent_start
+        ) and (
                 temporal_extent_end is None
-                or collection["temporal_extent"]["start"] is None
-                or collection["temporal_extent"]["start"] <= temporal_extent_end
-            ):
-                ids.append(collection["id"])
-        except TypeError:
-            temporal_extent_start_utc = temporal_extent_start.replace(tzinfo=datetime.timezone.utc)
-            temporal_extent_end_utc = temporal_extent_end.replace(tzinfo=datetime.timezone.utc)
-            if (
-                temporal_extent_start is None
-                or collection["temporal_extent"]["end"] is None
-                or collection["temporal_extent"]["end"] >= temporal_extent_start_utc
-            ) and (
-                temporal_extent_end is None
-                or collection["temporal_extent"]["start"] is None
-                or collection["temporal_extent"]["start"] <= temporal_extent_end_utc
-            ):
-                ids.append(collection["id"])
+                or collection_temporal_extent_start_utc is None
+                or collection_temporal_extent_start_utc <= temporal_extent_end
+        ):
+            ids.append(collection["id"])
     return ids
 
 
-
 def search_collections_verbose(
-    collection_json_dict: dict,
-    spatial_extent: shapely.geometry.Polygon = None,
-    temporal_extent_start=None,
-    temporal_extent_end=None,
+        collection_json_dict: dict,
+        spatial_extent: shapely.geometry.Polygon = None,
+        temporal_extent_start=None,
+        temporal_extent_end=None,
 ) -> List[AnyStr]:
-    
     ids = search_collections(collection_json_dict=collection_json_dict,
-                                spatial_extent=spatial_extent,
-                                temporal_extent_start=temporal_extent_start,
-                                temporal_extent_end=temporal_extent_end)
+                             spatial_extent=spatial_extent,
+                             temporal_extent_start=temporal_extent_start,
+                             temporal_extent_end=temporal_extent_end)
     # filter the collection_json_dict to only include the collections that are in the ids list
     return [
         collection
