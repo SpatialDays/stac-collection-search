@@ -146,3 +146,84 @@ class TestSearchCollections(unittest.TestCase):
                                              temporal_extent_end=end_date)
         self.assertEqual(len(collection_list), 1)
         self.assertEqual(collection_list[0], "landsat-7")
+
+    def test_search_collections_with_spatial_and_temporal_extent_non_utc_timestamp_collection_fully_contained_multiple_collections(self):
+        collection_list_json_dict = json.loads("""{
+                    "collections": [
+                        {
+                            "id": "landsat-8",
+                            "extent": {
+                                "spatial": {
+                                    "bbox": [
+                                        [
+                                            50,
+                                            0,
+                                            51,
+                                            1
+                                        ]
+                                    ]
+                                },
+                                "temporal": {
+                                    "interval": [
+                                        [
+                                            "2020-01-01T00:00:00",
+                                            "2021-01-01T00:00:00"
+                                        ]
+                                    ]
+                                }
+                            }
+                        },
+                                        {
+                            "id": "landsat-7",
+                            "extent": {
+                                "spatial": {
+                                    "bbox": [
+                                        [
+                                            60,
+                                            10,
+                                            61,
+                                            11
+                                        ]
+                                    ]
+                                },
+                                "temporal": {
+                                    "interval": [
+                                        [
+                                            "2015-01-01T00:00:00",
+                                            "2016-01-01T00:00:00"
+                                        ]
+                                    ]
+                                }
+                            }
+                        }
+
+                    ]
+                }
+                """)
+        start_date = datetime.datetime(2010, 1, 1)
+        end_date = datetime.datetime(2022, 1, 1)
+        bbox_shapely = shapely.geometry.box(50, 0, 61, 11)
+        collection_list = search_collections(collection_list_json_dict, spatial_extent=bbox_shapely,
+                                             temporal_extent_start=start_date,
+                                             temporal_extent_end=end_date)
+        self.assertEqual(len(collection_list), 2)
+        self.assertEqual(collection_list[0], "landsat-8")
+        self.assertEqual(collection_list[1], "landsat-7")
+
+        start_date = datetime.datetime(2010, 1, 1)
+        end_date = datetime.datetime(2022, 1, 1)
+        bbox_shapely = shapely.geometry.box(50, 0, 51, 1)
+        collection_list = search_collections(collection_list_json_dict, spatial_extent=bbox_shapely,
+                                             temporal_extent_start=start_date,
+                                             temporal_extent_end=end_date)
+        self.assertEqual(len(collection_list), 1)
+        self.assertEqual(collection_list[0], "landsat-8")
+
+        start_date = datetime.datetime(2010, 1, 1)
+        end_date = datetime.datetime(2022, 1, 1)
+        bbox_shapely = shapely.geometry.box(60, 10, 61, 11)
+        collection_list = search_collections(collection_list_json_dict, spatial_extent=bbox_shapely,
+                                             temporal_extent_start=start_date,
+                                             temporal_extent_end=end_date)
+        self.assertEqual(len(collection_list), 1)
+        self.assertEqual(collection_list[0], "landsat-7")
