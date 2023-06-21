@@ -1,6 +1,7 @@
-from typing import Optional, List, TypedDict, AnyStr
 import datetime
-import shapely
+from typing import Optional, List, TypedDict, AnyStr, Dict, Any
+
+import shapely.geometry
 
 
 class TemporalExtent(TypedDict):
@@ -14,64 +15,61 @@ class CollectionInfo(TypedDict):
     temporal_extent: TemporalExtent
 
 
-def get_shapely_object_from_bbox_list(bbox_list: List) -> shapely.geometry.Polygon:
-    bbox_list_shapely = shapely.geometry.box(*bbox_list)
-    return bbox_list_shapely
+def _get_shapely_object_from_bbox_list(bbox_list: List) -> shapely.geometry.Polygon:
+    return shapely.geometry.box(*bbox_list)
 
 
-def get_collections(collection_list_json: dict) -> List[CollectionInfo]:
-    collection_list: List[CollectionInfo] = []
-    for i in collection_list_json["collections"]:
-        collection_id = i["id"]
-        spatial_extents = i["extent"]["spatial"]["bbox"]
-        shapely_objects = [get_shapely_object_from_bbox_list(spatial_extent) for spatial_extent in spatial_extents]
-
-        shapely_objects_multipolygon = shapely.geometry.MultiPolygon(shapely_objects)
-
-        temporal_extent_start_string = i["extent"]["temporal"]["interval"][0][0]
-        temporal_extent_end_string = i["extent"]["temporal"]["interval"][0][1]
-
-        temporal_extent_start = _process_timestamp(
-            temporal_extent_start_string) if temporal_extent_start_string else None
-        temporal_extent_end = _process_timestamp(temporal_extent_end_string) if temporal_extent_end_string else None
-
-        collection_info = CollectionInfo(
-            id=collection_id,
-            spatial_extent=shapely_objects_multipolygon,
+def _get_collections(collection_list_json: dict) -> List[CollectionInfo]:
+    return [
+        CollectionInfo(
+            id=i["id"],
+            spatial_extent=shapely.geometry.MultiPolygon([
+                _get_shapely_object_from_bbox_list(spatial_extent)
+                for spatial_extent in i["extent"]["spatial"]["bbox"]
+            ]),
             temporal_extent=TemporalExtent(
-                start=temporal_extent_start,
-                end=temporal_extent_end
+                start=_process_timestamp(i["extent"]["temporal"]["interval"][0][0]),
+                end=_process_timestamp(i["extent"]["temporal"]["interval"][0][1])
             )
-        )
-        collection_list.append(collection_info)
-
-    return collection_list
+        ) for i in collection_list_json["collections"]
+    ]
 
 
 def _process_timestamp(timestamp: str) -> datetime:
     """
     Process a timestamp string into a datetime object.
     """
-    potential_timestamp_formats = ['%Y-%m-%dT%H:%M:%S%Z', '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S.%f%z',
-                                   '%Y-%m-%dT%H:%M:%S.%f']
-    timestamp_datetime = None
-    if timestamp is not None and timestamp != '..':
-        for fmt in potential_timestamp_formats:
-            try:
-                timestamp_datetime = datetime.datetime.strptime(timestamp, fmt)
-                break
-            except ValueError:
-                continue
-        if timestamp_datetime is None:
-            raise Exception
-    return timestamp_datetime
+    if timestamp is None:
+        return None
+    for fmt in ['%Y-%m-%dT%H:%M:%S%Z', '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S.%f%z', '%Y-%m-%dT%H:%M:%S.%f']:
+        try:
+            return datetime.datetime.strptime(timestamp, fmt)
+        except ValueError:
+            continue
+    raise ValueError(f"timestamp {timestamp} does not match any known formats")
 
 
-if __name__ == "__main__":
-    bbox_1 = [100, 0, 101, 1]
-    bbox_2 = [102, 2, 103, 3]
+def search_collections(collection_json_dict: dict, spatial_extent: shapely.geometry.Polygon = None,
+                       temporal_extent_start=None, temporal_extent_end=None) -> List[Dict[AnyStr, Any]]:
+    # Ensure that temporal_extent_start and temporal_extent_end are timezone-aware (in UTC)
+    if temporal_extent_start and temporal_extent_start.tzinfo is None:
+        temporal_extent_start = temporal_extent_start.replace(tzinfo=datetime.timezone.utc)
+    if temporal_extent_end and temporal_extent_end.tzinfo is None:
+        temporal_extent_end = temporal_extent_end.replace(tzinfo=datetime.timezone.utc)
 
-    bbox_1_shapely = get_shapely_object_from_bbox_list(bbox_1)
-    bbox_2_shapely = get_shapely_object_from_bbox_list(bbox_2)
+    collection_list = _get_collections(collection_json_dict)
 
-    bbox_multipolygon = shapely.geometry.MultiPolygon([bbox_1_shapely, bbox_2_shapely])
+    # First, we filter by spatial extent
+    collections_spatially_filtered = (
+        [collection for collection in collection_list if spatial_extent.intersects(collection["spatial_extent"])]
+        if spatial_extent else collection_list
+    )
+
+    # Now we apply time-based filter on spatially filtered collections
+    return [
+        collection["id"] for collection in collections_spatially_filtered
+        if (temporal_extent_start is None or collection["temporal_extent"]["end"] is None or
+            collection["temporal_extent"]["end"] >= temporal_extent_start) and
+           (temporal_extent_end is None or collection["temporal_extent"]["start"] is None or
+            collection["temporal_extent"]["start"] <= temporal_extent_end)
+    ]
