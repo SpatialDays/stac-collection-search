@@ -65,15 +65,23 @@ def search_collections(
         temporal_extent_end=None,
 ) -> List[Dict[AnyStr, Any]]:
     collection_list = _get_collections(collection_json_dict)
-    collections_spatially_filtered = (
-        [
-            collection
-            for collection in collection_list
-            if spatial_extent.intersects(collection["spatial_extent"])
-        ]
-        if spatial_extent
-        else collection_list
-    )
+    collections_spatially_filtered = []
+
+    for collection in collection_list:
+        try:
+            if spatial_extent is None or spatial_extent.intersects(collection["spatial_extent"]):
+                collections_spatially_filtered.append(collection)
+        except shapely.errors.GEOSException:
+            # make a bounding box around the collection["spatial_extent"] and check if it intersects with the spatial_extent
+            # if it does, add it to the list
+            print("Trying envelope")
+            shapely_multipolygon = shapely.geometry.MultiPolygon(collection["spatial_extent"])
+            shapely_multipolygon_bbox = shapely_multipolygon.envelope
+            if spatial_extent.intersects(shapely_multipolygon_bbox):
+                collections_spatially_filtered.append(collection)
+
+
+
     ids = []
     if temporal_extent_start is not None:
         temporal_extent_start = temporal_extent_start.replace(tzinfo=datetime.timezone.utc)
