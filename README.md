@@ -10,7 +10,10 @@ Quick utility which enables you to search for STAC collections with a given bbox
   from stac_collection_search import search_collections
 
   url ="https://planetarycomputer.microsoft.com/api/stac/v1/collections"
-  response = requests.get(url)
+  headers = {
+    "Content-Type": "application/geo+json",
+  }
+  response = requests.get(url, headers=headers)
   collection_list_json_dict = response.json()
   temporal_extent_start = datetime.datetime(2019, 1, 1)
   temporal_extent_end = datetime.datetime(2021, 1, 1)
