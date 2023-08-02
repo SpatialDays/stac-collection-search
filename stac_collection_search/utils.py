@@ -20,22 +20,31 @@ def _get_shapely_object_from_bbox_list(bbox_list: List) -> shapely.geometry.Poly
 
 
 def _get_collections(collection_list_json: dict) -> List[CollectionInfo]:
-    return [
-        CollectionInfo(
-            id=i["id"],
-            spatial_extent=shapely.geometry.MultiPolygon(
-                [
-                    _get_shapely_object_from_bbox_list(spatial_extent)
-                    for spatial_extent in i["extent"]["spatial"]["bbox"]
-                ]
-            ),
-            temporal_extent=TemporalExtent(
-                start=_process_timestamp(i["extent"]["temporal"]["interval"][0][0]),
-                end=_process_timestamp(i["extent"]["temporal"]["interval"][-1][1]),
-            ),
-        )
-        for i in collection_list_json["collections"]
-    ]
+    collections_info = []
+    for i in collection_list_json.get("collections", []):
+        try:
+            spatial_extent = i["extent"]["spatial"]["bbox"]
+            temporal_extent = i["extent"]["temporal"]["interval"]
+
+            shapely_objects = [
+                _get_shapely_object_from_bbox_list(spatial_bbox)
+                for spatial_bbox in spatial_extent
+            ]
+
+            collection = CollectionInfo(
+                id=i["id"],
+                spatial_extent=shapely.geometry.MultiPolygon(shapely_objects),
+                temporal_extent=TemporalExtent(
+                    start=_process_timestamp(temporal_extent[0][0]),
+                    end=_process_timestamp(temporal_extent[-1][1]),
+                ),
+            )
+            collections_info.append(collection)
+        except KeyError:
+            continue
+
+    return collections_info
+
 
 
 def _process_timestamp(timestamp: str) -> datetime:
